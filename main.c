@@ -28,12 +28,16 @@ int main() // int argc, char *argv[]
 		if( size > 0 ){
 			buffer[size -1]='\0';
 
+			if(strcmp(buffer,"exit")==0){
+				exit(1);
+			}
+
 			int pid=fork();
 			int status;
 			if(pid == 0 ){
 				status=execlp(buffer,buffer,NULL);
 				if(status==-1){
-					perror("Erreur lors de l'exec");
+					perror("Commande introuvable");
 					exit(-1);
 				}
 			}
