@@ -32,6 +32,16 @@ int main() // int argc, char *argv[]
 			if(strcmp(buffer,"exit")==0){
 				exit(1);
 			}
+			char *token;
+			char delim[]=" ";
+			char* str= malloc(BUFFER_SIZE*sizeof(char));
+			strcpy(str,buffer);
+
+			int argc=0;
+			char *argv[]=
+			for(token=strtok(str,delim); token ; token=strtok(NULL,delim)){
+				write(STDOUT_FILENO,token,strlen(token));
+			}
 
 			clock_gettime(CLOCK_REALTIME,&time0);
 			int pid=fork();
@@ -41,20 +51,21 @@ int main() // int argc, char *argv[]
 				//waitpid(pid,&status,WEXITED | WSTOPPED | WUNTRACED );
 				wait(&status);
 				clock_gettime(CLOCK_REALTIME,&time1);
-				long d=(time1.tv_nsec - time0.tv_nsec);
+				long d=1000*((long)time1.tv_sec -(long)time0.tv_sec) + 0.000001*(time1.tv_nsec - time0.tv_nsec);
 
 				char *etaBuffer=malloc(100);
 				if (WIFEXITED(status)) {
-					sprintf(etaBuffer,"[F%d,%ld ns]",status,d);
+					sprintf(etaBuffer,"[F%d,%ld ms]",status,d);
 				}else if (WIFSIGNALED(status)) {
-					sprintf(etaBuffer,"[E%d,%ld ns]",WTERMSIG(status),d);
+					sprintf(etaBuffer,"[E%d,%ld ms]",WTERMSIG(status),d);
 				}else if (WIFSTOPPED(status)) {
-					sprintf(etaBuffer,"[S%d,%ld ns]",WSTOPSIG(status),d);
+					sprintf(etaBuffer,"[S%d,%ld ms]",WSTOPSIG(status),d);
 				}
 				write(STDOUT_FILENO,etaBuffer,strlen(etaBuffer));
 			}
 			if(pid == 0 ){
-				status=execlp(buffer,buffer,NULL);
+
+				status=execlp("ls","ls",NULL);
 				perror("Commande introuvable");
 				exit(status);
 			}
