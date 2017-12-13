@@ -37,14 +37,15 @@ int main() // int argc, char *argv[]
 			int pid=fork();
 			int status;
 			if(pid > 0){
-				int *status=NULL;
-				waitpid(pid,status,WEXITED | WSTOPPED | WUNTRACED );
+				int status;
+				//waitpid(pid,&status,WEXITED | WSTOPPED | WUNTRACED );
+				wait(&status);
 				clock_gettime(CLOCK_REALTIME,&time1);
 				long d=(time1.tv_nsec - time0.tv_nsec);
 
 				char *etaBuffer=malloc(100);
 				if (WIFEXITED(status)) {
-					sprintf(etaBuffer,"[F%d,%ld ns]",WEXITSTATUS(status),d);
+					sprintf(etaBuffer,"[F%d,%ld ns]",status,d);
 				}else if (WIFSIGNALED(status)) {
 					sprintf(etaBuffer,"[E%d,%ld ns]",WTERMSIG(status),d);
 				}else if (WIFSTOPPED(status)) {
