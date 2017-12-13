@@ -18,6 +18,26 @@ int main() // int argc, char *argv[]
 		perror("erreur d\'ecriture");
 	}
 
+	while(1){
+	char* buffer= malloc(100*sizeof(char));
+	if( buffer != NULL ){
+		size_t size=read(STDIN_FILENO,buffer,100);
+
+		buffer[size -1]='\0';
+
+		int pid=fork();
+		int status;
+		if(pid > 0 ){
+			status=execlp(buffer,"enseash",NULL);
+			if(status==-1){
+				perror("Erreur lors de l'exec");
+			}
+		}
+
+	}
+	}
+
+
 
 
 
