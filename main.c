@@ -9,14 +9,14 @@
 
 #include <string.h>
 
-int main(int argc, char *argv[])
+int main() // int argc, char *argv[]
 {
 
-	char buffer[100];
-	strcpy(buffer,"Bonjour a tous");
+	const char *msg="Enseah \n Bienvenu dans le Shell Ensearque \n pour quiter, taper exit \n";
 
-
-	int fd;
+	if( write(STDOUT_FILENO,msg,strlen(msg)) == -1 ){
+		perror("erreur d\'ecriture");
+	}
 
 
 
