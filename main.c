@@ -9,6 +9,8 @@
 
 #include <string.h>
 
+#define BUFFER_SIZE 1024
+
 int main() // int argc, char *argv[]
 {
 
@@ -18,23 +20,27 @@ int main() // int argc, char *argv[]
 		perror("erreur d\'ecriture");
 	}
 
-	while(1){
-	char* buffer= malloc(100*sizeof(char));
+	char* buffer= malloc(BUFFER_SIZE*sizeof(char));
 	if( buffer != NULL ){
-		size_t size=read(STDIN_FILENO,buffer,100);
+		while(1){
+		size_t size=read(STDIN_FILENO,buffer,BUFFER_SIZE*sizeof(char));
 
-		buffer[size -1]='\0';
+		if( size > 0 ){
+			buffer[size -1]='\0';
 
-		int pid=fork();
-		int status;
-		if(pid > 0 ){
-			status=execlp(buffer,"enseash",NULL);
-			if(status==-1){
-				perror("Erreur lors de l'exec");
+			int pid=fork();
+			int status;
+			if(pid == 0 ){
+				status=execlp(buffer,buffer,NULL);
+				if(status==-1){
+					perror("Erreur lors de l'exec");
+					exit(-1);
+				}
 			}
 		}
+		}
 
-	}
+
 	}
 
 
