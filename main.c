@@ -40,28 +40,28 @@ int main() // int argc, char *argv[]
 				int *status=NULL;
 				waitpid(pid,status,WEXITED | WSTOPPED | WUNTRACED );
 				clock_gettime(CLOCK_REALTIME,&time1);
-				long d=time1.tv_nsec - time0.tv_nsec;
-				char *etaBuffer=malloc(100);
-				sprintf(etaBuffer,"[%d,%ld]",WEXITSTATUS(status),d);
+				long d=(time1.tv_nsec - time0.tv_nsec);
 
+				char *etaBuffer=malloc(100);
+				if (WIFEXITED(status)) {
+					sprintf(etaBuffer,"[F%d,%ld ns]",WEXITSTATUS(status),d);
+				}else if (WIFSIGNALED(status)) {
+					sprintf(etaBuffer,"[E%d,%ld ns]",WTERMSIG(status),d);
+				}else if (WIFSTOPPED(status)) {
+					sprintf(etaBuffer,"[S%d,%ld ns]",WSTOPSIG(status),d);
+				}
 				write(STDOUT_FILENO,etaBuffer,strlen(etaBuffer));
 			}
 			if(pid == 0 ){
 				status=execlp(buffer,buffer,NULL);
-				if(status==-1){
-					perror("Commande introuvable");
-					exit(-1);
-				}
+				perror("Commande introuvable");
+				exit(status);
 			}
 		}
 		}
 
 
 	}
-
-
-
-
 
 	exit(1);
 }
