@@ -6,7 +6,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <fcntl.h>
-
+#include <time.h>
 #include <string.h>
 
 #define BUFFER_SIZE 1024
@@ -21,6 +21,7 @@ int main() // int argc, char *argv[]
 	}
 
 	char* buffer= malloc(BUFFER_SIZE*sizeof(char));
+	struct timespec time0,time1;
 	if( buffer != NULL ){
 		while(1){
 		size_t size=read(STDIN_FILENO,buffer,BUFFER_SIZE*sizeof(char));
@@ -32,8 +33,19 @@ int main() // int argc, char *argv[]
 				exit(1);
 			}
 
+			clock_gettime(CLOCK_REALTIME,&time0);
 			int pid=fork();
 			int status;
+			if(pid > 0){
+				int *status=NULL;
+				waitpid(pid,status,WEXITED | WSTOPPED | WUNTRACED );
+				clock_gettime(CLOCK_REALTIME,&time1);
+				long d=time1.tv_nsec - time0.tv_nsec;
+				char *etaBuffer=malloc(100);
+				sprintf(etaBuffer,"[%d,%ld]",WEXITSTATUS(status),d);
+
+				write(STDOUT_FILENO,etaBuffer,strlen(etaBuffer));
+			}
 			if(pid == 0 ){
 				status=execlp(buffer,buffer,NULL);
 				if(status==-1){
