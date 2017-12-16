@@ -9,6 +9,7 @@
 #include <time.h>
 #include <string.h>
 
+
 #define BUFFER_SIZE 1024
 #define ARG_SIZE 10
 
@@ -17,6 +18,9 @@ const char *l2="\t\t|                     Enseah                |\n";
 const char *l3="\t\t|       Bienvenue dans le Shell Ensearque   |\n";
 const char *l4="\t\t|              Pour quitter, taper exit     |\n";
 const char *l5="\t\t--------------------------------------------\n>";
+
+typedef enum {ARG, OUT, IN, PIPE} arg_stat;
+
 
 inline void affiche(const char* str, int filedes){
 	if( write(filedes,str,strlen(str)) == -1 ){
@@ -35,6 +39,8 @@ int main()
 
 	int status;
 	struct timespec time0,time1;
+	int tube[2];
+
 
 	char* buffer= malloc(BUFFER_SIZE*sizeof(char));
 	if(buffer == NULL ){
@@ -57,6 +63,7 @@ int main()
 
 	accueil();
 
+
 	while(1){
 		size_t size=read(STDIN_FILENO,buffer,BUFFER_SIZE*sizeof(char));
 
@@ -76,12 +83,24 @@ int main()
 			while((token=strtok(NULL,&delim)) != NULL && argc < ARG_SIZE -1  ){
 				argv[argc]=token;
 				argc+=1;
+
 			}
 			argv[argc]=NULL;
 
+
+			// on ouvre un tube pour communiquer avec le fils
+			// Pere <- FILS
+			if( pipe(tube) != 0){
+					//erreur @todo
+			}
 			clock_gettime(CLOCK_REALTIME,&time0);
 			int pid=fork();
 			if(pid == 0 ){
+				// Fils, on ferme le canal venant du pere P->F
+				// On connecte STDOUT_FILENO avec Out F -> P
+				close(tube[1]);
+				dup2(tube[0],STDIN_FILENO);
+
 				//status=execlp(argv[0],argv[0],NULL);
 				status=execvp(argv[0],argv);
 
@@ -92,18 +111,27 @@ int main()
 				exit(status);
 			}
 			else if(pid > 0){
+				// Pere : on ferne le canal vers le fils : P -> F
+				close(tube[0]);
+				while( read(tube[1],buffer,BUFFER_SIZE*sizeof(char)) >0 ){
+					affiche(buffer,STDOUT_FILENO);
+
+				}
 				wait(&status);
+
+
 				clock_gettime(CLOCK_REALTIME,&time1);
 				long d=1000*((long)time1.tv_sec -(long)time0.tv_sec) + 0.000001*(time1.tv_nsec - time0.tv_nsec);
 
 				if (WIFEXITED(status)) {
-					sprintf(buffer,"[F%d,%ld ms] >",status,d);
+					sprintf(buffer,"[F%d,%ld ms]\n>",status,d);
 				}else if (WIFSIGNALED(status)) {
-					sprintf(buffer,"[E%d,%ld ms] >",WTERMSIG(status),d);
+					sprintf(buffer,"[E%d,%ld ms]\n>",WTERMSIG(status),d);
 				}else if (WIFSTOPPED(status)) {
-					sprintf(buffer,"[S%d,%ld ms] >",WSTOPSIG(status),d);
+					sprintf(buffer,"[S%d,%ld ms]\n>",WSTOPSIG(status),d);
 				}
 				affiche(buffer,STDOUT_FILENO);
+
 				//write(STDOUT_FILENO,buffer,strlen(buffer));
 			}
 			else {
