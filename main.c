@@ -22,16 +22,16 @@ const char *l5="\t\t--------------------------------------------\n>";
 typedef enum {ARG, OUT, IN, PIPE} arg_stat;
 
 
-inline void affiche(const char* str, int filedes){
-	if( write(filedes,str,strlen(str)) == -1 ){
+inline void affiche(const char* str, int filedes,size_t size){
+	if( write(filedes,str,size) == -1 ){
 		perror("Affichage : ");
 		exit(EXIT_FAILURE);
 	}
 }
 inline void accueil(){
-	affiche(l1,STDOUT_FILENO); affiche(l2,STDOUT_FILENO);
-	affiche(l3,STDOUT_FILENO); affiche(l4,STDOUT_FILENO);
-	affiche(l5,STDOUT_FILENO);
+	affiche(l1,STDOUT_FILENO,strlen(l1)); affiche(l2,STDOUT_FILENO,strlen(l2));
+	affiche(l3,STDOUT_FILENO,strlen(l3)); affiche(l4,STDOUT_FILENO,strlen(l4));
+	affiche(l5,STDOUT_FILENO,strlen(l5));
 }
 
 int main()
@@ -74,16 +74,23 @@ int main()
 				free(buffer); free(argv);
 				exit(1);
 			}
-			char* token;
+			char* token=NULL;
+			char* fout=NULL;
+			struct stat s_fout;
+			int fd_out=-1;
 			char delim=' ';
 
 			int argc=1;
 			argv[0]=strtok(buffer,&delim);
 
 			while((token=strtok(NULL,&delim)) != NULL && argc < ARG_SIZE -1  ){
-				argv[argc]=token;
-				argc+=1;
-
+				if(strcmp(token,">")==0){
+					fout=strtok(NULL,&delim);
+					//affiche(fout,STDOUT_FILENO,strlen(fout));
+				}else{
+					argv[argc]=token;
+					argc+=1;
+				}
 			}
 			argv[argc]=NULL;
 
@@ -93,7 +100,6 @@ int main()
 			if( pipe(tube) != 0){
 					perror("tube");
 					exit(-1);
-			}else{
 			}
 			clock_gettime(CLOCK_REALTIME,&time0);
 			int pid=fork();
@@ -119,6 +125,14 @@ int main()
 
 				clock_gettime(CLOCK_REALTIME,&time1);
 				long d=1000*((long)time1.tv_sec -(long)time0.tv_sec) + 0.000001*(time1.tv_nsec - time0.tv_nsec);
+				if(fout !=NULL){
+					if( stat(fout,&s_fout) == -1){
+						fd_out=creat(fout,O_WRONLY | S_IRWXU  );
+					}else{
+						fd_out=open(fout,O_WRONLY|O_TRUNC);
+					}
+				}
+
 
 				if (WIFEXITED(status)) {
 					sprintf(buffer,"[F%d,%ld ms]",status,d);
@@ -127,16 +141,20 @@ int main()
 				}else if (WIFSTOPPED(status)) {
 					sprintf(buffer,"[S%d,%ld ms]",WSTOPSIG(status),d);
 				}
-				affiche(buffer,STDOUT_FILENO);
+				affiche(buffer,STDOUT_FILENO,strlen(buffer));
 
-				int fd=creat("123.txt", O_RDWR | S_IRWXU);
 
-				while( read(tube[0],buffer,BUFFER_SIZE*sizeof(char)) >0 ){
-					affiche(buffer,fd);
-					affiche(buffer,STDOUT_FILENO);
+				while( (size=read(tube[0],buffer,BUFFER_SIZE*sizeof(char))) >0 ){
+					if( fd_out !=-1 ){ affiche(buffer,fd_out,size);}
+					affiche(buffer,STDOUT_FILENO,size);
+					//affiche(buffer,STDOUT_FILENO);
 				}
-				close(fd);
-				affiche("\n>",STDOUT_FILENO);
+				close(tube[0]);
+				if(fd_out != -1){
+					close(fd_out);
+					fout=NULL;
+				}
+				affiche("\n>",STDOUT_FILENO,2);
 				//write(STDOUT_FILENO,buffer,strlen(buffer));
 			}
 			else {
