@@ -12,15 +12,38 @@
 #define BUFFER_SIZE 1024
 #define ARG_SIZE 10
 
+inline void affiche(const char* str, int filedes){
+	if( write(filedes,str,strlen(str)) == -1 ){
+		perror("Affichage : ");
+		exit(EXIT_FAILURE);
+	}
+}
+
+
 int main()
 {
-	const char *msg="Enseah \n Bienvenu dans le Shell Ensearque \n pour quiter, taper exit \n";
+	const char *l1="\t--------------------------------------------\n";
+	const char *l2="\t|                     Enseah                |\n";
+	const char *l3="\t|       Bienvenu dans le Shell Ensearque    |\n";
+	const char *l4="\t|       Pour quiter, taper exit             |\n";
+	const char *l5="\t--------------------------------------------\n";
+	int status;
 
-	if( write(STDOUT_FILENO,msg,strlen(msg)) == -1 ){
-		perror("erreur d\'ecriture");
+	// On clean la console.
+	if( fork() == 0){
+		execlp("clear","clear",NULL);
+		exit(EXIT_FAILURE)
+	}else{
+		wait(&status);
 	}
 
+	affiche(l1,STDOUT_FILENO); affiche(l2,STDOUT_FILENO);
+	affiche(l3,STDOUT_FILENO); affiche(l4,STDOUT_FILENO);
+	affiche(l5,STDOUT_FILENO);
+
+
 	char* buffer= malloc(BUFFER_SIZE*sizeof(char));
+
 	struct timespec time0,time1;
 
 	if( buffer != NULL ){
@@ -35,27 +58,24 @@ int main()
 			}
 			char* token;
 			char delim=' ';
-			char* str= malloc(BUFFER_SIZE*sizeof(char));
-			strcpy(str,buffer);
 
 			int argc=1;
 			char** argv = malloc(ARG_SIZE*sizeof(char*));
-			argv[0]=strtok(str,&delim);
+			argv[0]=strtok(buffer,&delim);
 
-			write(STDOUT_FILENO,argv[0],strlen(argv[0]));
-			write(STDOUT_FILENO,"\n",2);
+			//write(STDOUT_FILENO,argv[0],strlen(argv[0]));
+			//write(STDOUT_FILENO,"\n",2);
 
 			while((token=strtok(NULL,&delim)) != NULL && argc < ARG_SIZE -1  ){
 				argv[argc]=token;
-				write(STDOUT_FILENO,token,strlen(token));
-				write(STDOUT_FILENO,"\n",2);
+				//write(STDOUT_FILENO,token,strlen(token));
+				//write(STDOUT_FILENO,"\n",2);
 				argc+=1;
 			}
 			argv[argc]=NULL;
 
 			clock_gettime(CLOCK_REALTIME,&time0);
 			int pid=fork();
-			int status;
 			if(pid > 0){
 				int status;
 				//waitpid(pid,&status,WEXITED | WSTOPPED | WUNTRACED );
@@ -63,15 +83,15 @@ int main()
 				clock_gettime(CLOCK_REALTIME,&time1);
 				long d=1000*((long)time1.tv_sec -(long)time0.tv_sec) + 0.000001*(time1.tv_nsec - time0.tv_nsec);
 
-				char *etaBuffer=malloc(100);
 				if (WIFEXITED(status)) {
-					sprintf(etaBuffer,"[F%d,%ld ms]",status,d);
+					sprintf(buffer,"[F%d,%ld ms] >",status,d);
 				}else if (WIFSIGNALED(status)) {
-					sprintf(etaBuffer,"[E%d,%ld ms]",WTERMSIG(status),d);
+					sprintf(buffer,"[E%d,%ld ms] >",WTERMSIG(status),d);
 				}else if (WIFSTOPPED(status)) {
-					sprintf(etaBuffer,"[S%d,%ld ms]",WSTOPSIG(status),d);
+					sprintf(buffer,"[S%d,%ld ms] >",WSTOPSIG(status),d);
 				}
-				write(STDOUT_FILENO,etaBuffer,strlen(etaBuffer));
+				affiche(buffer,STDOUT_FILENO);
+				//write(STDOUT_FILENO,buffer,strlen(buffer));
 			}
 			if(pid == 0 ){
 
