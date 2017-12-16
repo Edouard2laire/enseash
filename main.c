@@ -91,15 +91,17 @@ int main()
 			// on ouvre un tube pour communiquer avec le fils
 			// Pere <- FILS
 			if( pipe(tube) != 0){
-					//erreur @todo
+					perror("tube");
+					exit(-1);
+			}else{
 			}
 			clock_gettime(CLOCK_REALTIME,&time0);
 			int pid=fork();
 			if(pid == 0 ){
 				// Fils, on ferme le canal venant du pere P->F
 				// On connecte STDOUT_FILENO avec Out F -> P
-				close(tube[1]);
-				dup2(tube[0],STDIN_FILENO);
+				close(tube[0]);
+				dup2(tube[1],STDOUT_FILENO);
 
 				//status=execlp(argv[0],argv[0],NULL);
 				status=execvp(argv[0],argv);
@@ -112,26 +114,29 @@ int main()
 			}
 			else if(pid > 0){
 				// Pere : on ferne le canal vers le fils : P -> F
-				close(tube[0]);
-				while( read(tube[1],buffer,BUFFER_SIZE*sizeof(char)) >0 ){
-					affiche(buffer,STDOUT_FILENO);
-
-				}
+				close(tube[1]);
 				wait(&status);
-
 
 				clock_gettime(CLOCK_REALTIME,&time1);
 				long d=1000*((long)time1.tv_sec -(long)time0.tv_sec) + 0.000001*(time1.tv_nsec - time0.tv_nsec);
 
 				if (WIFEXITED(status)) {
-					sprintf(buffer,"[F%d,%ld ms]\n>",status,d);
+					sprintf(buffer,"[F%d,%ld ms]",status,d);
 				}else if (WIFSIGNALED(status)) {
-					sprintf(buffer,"[E%d,%ld ms]\n>",WTERMSIG(status),d);
+					sprintf(buffer,"[E%d,%ld ms]",WTERMSIG(status),d);
 				}else if (WIFSTOPPED(status)) {
-					sprintf(buffer,"[S%d,%ld ms]\n>",WSTOPSIG(status),d);
+					sprintf(buffer,"[S%d,%ld ms]",WSTOPSIG(status),d);
 				}
 				affiche(buffer,STDOUT_FILENO);
 
+				int fd=creat("123.txt", O_RDWR | S_IRWXU);
+
+				while( read(tube[0],buffer,BUFFER_SIZE*sizeof(char)) >0 ){
+					affiche(buffer,fd);
+					affiche(buffer,STDOUT_FILENO);
+				}
+				close(fd);
+				affiche("\n>",STDOUT_FILENO);
 				//write(STDOUT_FILENO,buffer,strlen(buffer));
 			}
 			else {
