@@ -12,73 +12,86 @@
 #define BUFFER_SIZE 1024
 #define ARG_SIZE 10
 
+const char *l1="\t\t--------------------------------------------\n";
+const char *l2="\t\t|                     Enseah                |\n";
+const char *l3="\t\t|       Bienvenue dans le Shell Ensearque   |\n";
+const char *l4="\t\t|              Pour quitter, taper exit     |\n";
+const char *l5="\t\t--------------------------------------------\n>";
+
 inline void affiche(const char* str, int filedes){
 	if( write(filedes,str,strlen(str)) == -1 ){
 		perror("Affichage : ");
 		exit(EXIT_FAILURE);
 	}
 }
-
+inline void accueil(){
+	affiche(l1,STDOUT_FILENO); affiche(l2,STDOUT_FILENO);
+	affiche(l3,STDOUT_FILENO); affiche(l4,STDOUT_FILENO);
+	affiche(l5,STDOUT_FILENO);
+}
 
 int main()
 {
-	const char *l1="\t--------------------------------------------\n";
-	const char *l2="\t|                     Enseah                |\n";
-	const char *l3="\t|       Bienvenu dans le Shell Ensearque    |\n";
-	const char *l4="\t|       Pour quiter, taper exit             |\n";
-	const char *l5="\t--------------------------------------------\n";
+
 	int status;
+	struct timespec time0,time1;
+
+	char* buffer= malloc(BUFFER_SIZE*sizeof(char));
+	if(buffer == NULL ){
+		exit(EXIT_FAILURE);
+	}
+	char** argv = malloc(ARG_SIZE*sizeof(char*));
+	if(argv == NULL){
+		free(buffer);
+		exit(EXIT_FAILURE);
+	}
 
 	// On clean la console.
 	if( fork() == 0){
 		execlp("clear","clear",NULL);
-		exit(EXIT_FAILURE)
+		free(buffer); free(argv);
+		exit(EXIT_FAILURE);
 	}else{
 		wait(&status);
 	}
 
-	affiche(l1,STDOUT_FILENO); affiche(l2,STDOUT_FILENO);
-	affiche(l3,STDOUT_FILENO); affiche(l4,STDOUT_FILENO);
-	affiche(l5,STDOUT_FILENO);
+	accueil();
 
-
-	char* buffer= malloc(BUFFER_SIZE*sizeof(char));
-
-	struct timespec time0,time1;
-
-	if( buffer != NULL ){
-		while(1){
+	while(1){
 		size_t size=read(STDIN_FILENO,buffer,BUFFER_SIZE*sizeof(char));
 
 		if( size > 0 ){
 			buffer[size -1]='\0';
 
 			if(strcmp(buffer,"exit")==0){
+				free(buffer); free(argv);
 				exit(1);
 			}
 			char* token;
 			char delim=' ';
 
 			int argc=1;
-			char** argv = malloc(ARG_SIZE*sizeof(char*));
 			argv[0]=strtok(buffer,&delim);
-
-			//write(STDOUT_FILENO,argv[0],strlen(argv[0]));
-			//write(STDOUT_FILENO,"\n",2);
 
 			while((token=strtok(NULL,&delim)) != NULL && argc < ARG_SIZE -1  ){
 				argv[argc]=token;
-				//write(STDOUT_FILENO,token,strlen(token));
-				//write(STDOUT_FILENO,"\n",2);
 				argc+=1;
 			}
 			argv[argc]=NULL;
 
 			clock_gettime(CLOCK_REALTIME,&time0);
 			int pid=fork();
-			if(pid > 0){
-				int status;
-				//waitpid(pid,&status,WEXITED | WSTOPPED | WUNTRACED );
+			if(pid == 0 ){
+				//status=execlp(argv[0],argv[0],NULL);
+				status=execvp(argv[0],argv);
+
+				free(argv);
+				free(buffer);
+
+				perror("Commande introuvable");
+				exit(status);
+			}
+			else if(pid > 0){
 				wait(&status);
 				clock_gettime(CLOCK_REALTIME,&time1);
 				long d=1000*((long)time1.tv_sec -(long)time0.tv_sec) + 0.000001*(time1.tv_nsec - time0.tv_nsec);
@@ -93,16 +106,16 @@ int main()
 				affiche(buffer,STDOUT_FILENO);
 				//write(STDOUT_FILENO,buffer,strlen(buffer));
 			}
-			if(pid == 0 ){
+			else {
+				// Fork n'a pas marché
+				free(argv);
+				free(buffer);
 
-				//status=execlp(argv[0],argv[0],NULL);
-				status=execvp(argv[0],argv);
-				perror("Commande introuvable");
-				exit(status);
+				perror("Fork");
+				exit(EXIT_FAILURE);
 			}
-		}
-		}
 
+		}
 
 	}
 
