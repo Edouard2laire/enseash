@@ -9,36 +9,27 @@
 #include <time.h>
 #include <string.h>
 
-
-#define BUFFER_SIZE 1024
-#define ARG_SIZE 10
-
-const char *l1="\t\t--------------------------------------------\n";
-const char *l2="\t\t|                     Enseah                |\n";
-const char *l3="\t\t|       Bienvenue dans le Shell Ensearque   |\n";
-const char *l4="\t\t|              Pour quitter, taper exit     |\n";
-const char *l5="\t\t--------------------------------------------\n>";
+#include "main.h"
 
 
-typedef struct process {
-	int ppid;
-	char** argv;
-	int argc;
 
-	int fd_out;
-	int fd_in;
-
-}process;
-
-int initProcess(process *p){
-	p->ppid=-1;
-	p->argv= malloc(ARG_SIZE*sizeof(char*));
+process* initProcess(){
+	process *p= malloc(sizeof(process));
+	if( p == NULL ){
+		return NULL;
+	}
+	p->pid=-1;
 	p->argc=0;
-
 	p->fd_out=STDOUT_FILENO;
 	p->fd_in=STDIN_FILENO;
 
-	return (p->argv != NULL);
+	p->argv= malloc(ARG_SIZE*sizeof(char*));
+	if(p->argv==NULL){
+		free(p);
+		return NULL;
+	}
+
+	return p;
 }
 
 void lib(process *p){
@@ -70,15 +61,12 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
-	process *p= malloc(sizeof(process));
-	if( p != NULL){
-		if(initProcess(p)== 0){
-			free(p);
-			free(buffer);
-
-			exit(EXIT_FAILURE);
-		}
+	process *p;
+	if( (p= initProcess()) == NULL){
+		free(buffer);
+		exit(EXIT_FAILURE);
 	}
+
 
 	// On clean la console.
 	if( fork() == 0){
@@ -97,13 +85,9 @@ int main()
 		size_t size=read(STDIN_FILENO,buffer,BUFFER_SIZE*sizeof(char));
 		lib(p);
 
-		p= malloc(sizeof(process));
-		if( p != NULL){
-			if(initProcess(p)== 0){
-				free(p);
-				free(buffer);
-				exit(EXIT_FAILURE);
-			}
+		if( (p= initProcess()) == NULL){
+			free(buffer);
+			exit(EXIT_FAILURE);
 		}
 
 		if( size > 0 ){
@@ -169,7 +153,7 @@ int main()
 				perror("Commande introuvable");
 				exit(status);
 			}
-			else if(pid > 0){
+			else if((p->pid=pid) > 0){
 
 				wait(&status);
 
