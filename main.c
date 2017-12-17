@@ -39,8 +39,8 @@ int main()
 
 	int status;
 	struct timespec time0,time1;
-	int tube[2];
 
+	int tube_out[2];
 
 	char* buffer= malloc(BUFFER_SIZE*sizeof(char));
 	if(buffer == NULL ){
@@ -74,11 +74,20 @@ int main()
 				free(buffer); free(argv);
 				exit(1);
 			}
+
+			// separation des tokens
 			char* token=NULL;
+			char delim=' ';
+
+			// strucure du fichier de sortie >
 			char* fout=NULL;
 			struct stat s_fout;
 			int fd_out=-1;
-			char delim=' ';
+
+			// strucure du fichier d'entré <
+			char* fin=NULL;
+			struct stat s_in;
+			int fd_in=-1;
 
 			int argc=1;
 			argv[0]=strtok(buffer,&delim);
@@ -87,6 +96,8 @@ int main()
 				if(strcmp(token,">")==0){
 					fout=strtok(NULL,&delim);
 					//affiche(fout,STDOUT_FILENO,strlen(fout));
+				}else if(strcmp(token,"<")==0){
+					fin=strtok(NULL,&delim);
 				}else{
 					argv[argc]=token;
 					argc+=1;
@@ -97,7 +108,7 @@ int main()
 
 			// on ouvre un tube pour communiquer avec le fils
 			// Pere <- FILS
-			if( pipe(tube) != 0){
+			if( pipe(tube_out) != 0 ){
 					perror("tube");
 					exit(-1);
 			}
@@ -106,8 +117,13 @@ int main()
 			if(pid == 0 ){
 				// Fils, on ferme le canal venant du pere P->F
 				// On connecte STDOUT_FILENO avec Out F -> P
-				close(tube[0]);
-				dup2(tube[1],STDOUT_FILENO);
+				close(tube_out[0]);
+				if( fin != NULL){
+					fd_in=open(fin,O_RDONLY);
+					dup2(STDIN_FILENO,fd_in);
+				}
+
+				dup2(tube_out[1],STDOUT_FILENO);
 
 				//status=execlp(argv[0],argv[0],NULL);
 				status=execvp(argv[0],argv);
@@ -120,7 +136,7 @@ int main()
 			}
 			else if(pid > 0){
 				// Pere : on ferne le canal vers le fils : P -> F
-				close(tube[1]);
+				close(tube_out[1]);
 				wait(&status);
 
 				clock_gettime(CLOCK_REALTIME,&time1);
@@ -144,12 +160,11 @@ int main()
 				affiche(buffer,STDOUT_FILENO,strlen(buffer));
 
 
-				while( (size=read(tube[0],buffer,BUFFER_SIZE*sizeof(char))) >0 ){
+				while( (size=read(tube_out[0],buffer,BUFFER_SIZE*sizeof(char))) >0 ){
 					if( fd_out !=-1 ){ affiche(buffer,fd_out,size);}
 					affiche(buffer,STDOUT_FILENO,size);
-					//affiche(buffer,STDOUT_FILENO);
 				}
-				close(tube[0]);
+				close(tube_out[0]);
 				if(fd_out != -1){
 					close(fd_out);
 					fout=NULL;
