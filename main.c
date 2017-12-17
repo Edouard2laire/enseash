@@ -41,6 +41,7 @@ int main()
 	struct timespec time0,time1;
 
 	int tube_out[2];
+	int tube_in[2];
 
 	char* buffer= malloc(BUFFER_SIZE*sizeof(char));
 	if(buffer == NULL ){
@@ -108,22 +109,37 @@ int main()
 
 			// on ouvre un tube pour communiquer avec le fils
 			// Pere <- FILS
-			if( pipe(tube_out) != 0 ){
+			if( pipe(tube_out) != 0 || pipe(tube_in)){
 					perror("tube");
 					exit(-1);
 			}
 			clock_gettime(CLOCK_REALTIME,&time0);
+
+
 			int pid=fork();
 			if(pid == 0 ){
 				// Fils, on ferme le canal venant du pere P->F
 				// On connecte STDOUT_FILENO avec Out F -> P
 				close(tube_out[0]);
-				if( fin != NULL){
-					fd_in=open(fin,O_RDONLY);
-					dup2(STDIN_FILENO,fd_in);
+
+				if(fin !=NULL){
+					if( (fd_in=open(fin,O_RDONLY,0)) != -1 ){
+							dup2(fd_in,STDIN_FILENO);
+							close(fd_in);
+					}
 				}
 
-				dup2(tube_out[1],STDOUT_FILENO);
+				if(fout !=NULL){
+					if( stat(fout,&s_fout) == -1){
+						fd_out=creat(fout,O_WRONLY | S_IRWXU  );
+					}else{
+						fd_out=open(fout,O_WRONLY|O_TRUNC);
+					}
+					dup2(fd_out,STDOUT_FILENO);
+					close(fd_out);
+
+				}
+
 
 				//status=execlp(argv[0],argv[0],NULL);
 				status=execvp(argv[0],argv);
@@ -137,17 +153,19 @@ int main()
 			else if(pid > 0){
 				// Pere : on ferne le canal vers le fils : P -> F
 				close(tube_out[1]);
+
 				wait(&status);
 
 				clock_gettime(CLOCK_REALTIME,&time1);
 				long d=1000*((long)time1.tv_sec -(long)time0.tv_sec) + 0.000001*(time1.tv_nsec - time0.tv_nsec);
-				if(fout !=NULL){
+
+				/* if(fout !=NULL){
 					if( stat(fout,&s_fout) == -1){
 						fd_out=creat(fout,O_WRONLY | S_IRWXU  );
 					}else{
 						fd_out=open(fout,O_WRONLY|O_TRUNC);
 					}
-				}
+				} */
 
 
 				if (WIFEXITED(status)) {
@@ -159,12 +177,12 @@ int main()
 				}
 				affiche(buffer,STDOUT_FILENO,strlen(buffer));
 
-
+				/*
 				while( (size=read(tube_out[0],buffer,BUFFER_SIZE*sizeof(char))) >0 ){
 					if( fd_out !=-1 ){ affiche(buffer,fd_out,size);}
 					affiche(buffer,STDOUT_FILENO,size);
 				}
-				close(tube_out[0]);
+				close(tube_out[0]); */
 				if(fd_out != -1){
 					close(fd_out);
 					fout=NULL;
