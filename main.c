@@ -19,9 +19,33 @@ const char *l3="\t\t|       Bienvenue dans le Shell Ensearque   |\n";
 const char *l4="\t\t|              Pour quitter, taper exit     |\n";
 const char *l5="\t\t--------------------------------------------\n>";
 
-typedef enum {ARG, OUT, IN, PIPE} arg_stat;
 
+typedef struct process {
+	int ppid;
+	char** argv;
+	int argc;
 
+	int fd_out;
+	int fd_in;
+
+}process;
+
+int initProcess(process *p){
+	p->ppid=-1;
+	p->argv= malloc(ARG_SIZE*sizeof(char*));
+	p->argc=0;
+
+	p->fd_out=STDOUT_FILENO;
+	p->fd_in=STDIN_FILENO;
+
+	return (p->argv != NULL);
+}
+
+void lib(process *p){
+	free(p->argv);
+	free(p);
+
+}
 inline void affiche(const char* str, int filedes,size_t size){
 	if( write(filedes,str,size) == -1 ){
 		perror("Affichage : ");
@@ -40,23 +64,26 @@ int main()
 	int status;
 	struct timespec time0,time1;
 
-	int tube_out[2];
-	int tube_in[2];
 
 	char* buffer= malloc(BUFFER_SIZE*sizeof(char));
 	if(buffer == NULL ){
 		exit(EXIT_FAILURE);
 	}
-	char** argv = malloc(ARG_SIZE*sizeof(char*));
-	if(argv == NULL){
-		free(buffer);
-		exit(EXIT_FAILURE);
+
+	process *p= malloc(sizeof(process));
+	if( p != NULL){
+		if(initProcess(p)== 0){
+			free(p);
+			free(buffer);
+
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	// On clean la console.
 	if( fork() == 0){
 		execlp("clear","clear",NULL);
-		free(buffer); free(argv);
+		free(buffer);
 		exit(EXIT_FAILURE);
 	}else{
 		wait(&status);
@@ -65,107 +92,89 @@ int main()
 	accueil();
 
 
+
 	while(1){
 		size_t size=read(STDIN_FILENO,buffer,BUFFER_SIZE*sizeof(char));
+		lib(p);
+
+		p= malloc(sizeof(process));
+		if( p != NULL){
+			if(initProcess(p)== 0){
+				free(p);
+				free(buffer);
+				exit(EXIT_FAILURE);
+			}
+		}
 
 		if( size > 0 ){
 			buffer[size -1]='\0';
 
 			if(strcmp(buffer,"exit")==0){
-				free(buffer); free(argv);
+				free(buffer); lib(p);
 				exit(1);
 			}
 
 			// separation des tokens
 			char* token=NULL;
 			char delim=' ';
-
-			// strucure du fichier de sortie >
-			char* fout=NULL;
 			struct stat s_fout;
-			int fd_out=-1;
 
-			// strucure du fichier d'entré <
-			char* fin=NULL;
-			struct stat s_in;
-			int fd_in=-1;
 
-			int argc=1;
-			argv[0]=strtok(buffer,&delim);
 
-			while((token=strtok(NULL,&delim)) != NULL && argc < ARG_SIZE -1  ){
+
+			p->argc=1;
+			p->argv[0]=strtok(buffer,&delim);
+
+			while((token=strtok(NULL,&delim)) != NULL && p->argc < ARG_SIZE -1  ){
 				if(strcmp(token,">")==0){
-					fout=strtok(NULL,&delim);
-					//affiche(fout,STDOUT_FILENO,strlen(fout));
+					token=strtok(NULL,&delim);
+					if( stat(token,&s_fout) == -1){
+						p->fd_out=creat(token,O_WRONLY | S_IRWXU  );
+					}else{
+						p->fd_out=open(token,O_WRONLY|O_TRUNC);
+					}
 				}else if(strcmp(token,"<")==0){
-					fin=strtok(NULL,&delim);
+					token=strtok(NULL,&delim);
+					p->fd_in=open(token,O_RDONLY,0);
 				}else{
-					argv[argc]=token;
-					argc+=1;
+					p->argv[p->argc]=token;
+					p->argc+=1;
 				}
 			}
-			argv[argc]=NULL;
+			p->argv[p->argc]=NULL;
 
 
-			// on ouvre un tube pour communiquer avec le fils
-			// Pere <- FILS
-			if( pipe(tube_out) != 0 || pipe(tube_in)){
-					perror("tube");
-					exit(-1);
-			}
+
 			clock_gettime(CLOCK_REALTIME,&time0);
 
 
 			int pid=fork();
 			if(pid == 0 ){
-				// Fils, on ferme le canal venant du pere P->F
-				// On connecte STDOUT_FILENO avec Out F -> P
-				close(tube_out[0]);
-
-				if(fin !=NULL){
-					if( (fd_in=open(fin,O_RDONLY,0)) != -1 ){
-							dup2(fd_in,STDIN_FILENO);
-							close(fd_in);
-					}
+				if(p->fd_in != STDIN_FILENO){
+					dup2(p->fd_in,STDIN_FILENO);
+					close(p->fd_in);
 				}
-
-				if(fout !=NULL){
-					if( stat(fout,&s_fout) == -1){
-						fd_out=creat(fout,O_WRONLY | S_IRWXU  );
-					}else{
-						fd_out=open(fout,O_WRONLY|O_TRUNC);
-					}
-					dup2(fd_out,STDOUT_FILENO);
-					close(fd_out);
-
+				if(p->fd_out !=STDOUT_FILENO){
+					dup2(p->fd_out,STDOUT_FILENO);
+					close(p->fd_out);
 				}
 
 
 				//status=execlp(argv[0],argv[0],NULL);
-				status=execvp(argv[0],argv);
+				status=execvp(p->argv[0],p->argv);
 
-				free(argv);
+				lib(p);
 				free(buffer);
 
 				perror("Commande introuvable");
 				exit(status);
 			}
 			else if(pid > 0){
-				// Pere : on ferne le canal vers le fils : P -> F
-				close(tube_out[1]);
 
 				wait(&status);
 
 				clock_gettime(CLOCK_REALTIME,&time1);
 				long d=1000*((long)time1.tv_sec -(long)time0.tv_sec) + 0.000001*(time1.tv_nsec - time0.tv_nsec);
-
-				/* if(fout !=NULL){
-					if( stat(fout,&s_fout) == -1){
-						fd_out=creat(fout,O_WRONLY | S_IRWXU  );
-					}else{
-						fd_out=open(fout,O_WRONLY|O_TRUNC);
-					}
-				} */
 
 
 				if (WIFEXITED(status)) {
@@ -183,16 +192,12 @@ int main()
 					affiche(buffer,STDOUT_FILENO,size);
 				}
 				close(tube_out[0]); */
-				if(fd_out != -1){
-					close(fd_out);
-					fout=NULL;
-				}
 				affiche("\n>",STDOUT_FILENO,2);
 				//write(STDOUT_FILENO,buffer,strlen(buffer));
 			}
 			else {
 				// Fork n'a pas marché
-				free(argv);
+				lib(p);
 				free(buffer);
 
 				perror("Fork");
