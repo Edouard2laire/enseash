@@ -18,13 +18,23 @@ typedef struct process {
 	int argc;
 
 	int fd_out;
+	int fc_out;
+
 	int fd_in;
+	int fc_in;
 
 }process;
 
+typedef struct process_list{
+	process* current;
+	struct process_list* next;
+}process_list;
+
 process* initProcess();
 void lib(process *p);
+int isValid(process *p);
 
+process_list* initProcessList();
 
 inline void affiche(const char* str, int filedes,size_t size);
 inline void accueil();
